@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "858453853807",
+    "project_id": "safespotcm",
+    "storage_bucket": "safespotcm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:858453853807:android:96bd4368e10b01c2932f9a",
+        "android_client_info": {
+          "package_name": "com.example.safespot"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAd3nkOkPsrNlbhkRtti71bzGKzsKfbx2U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:858453853807:android:378a226f145b9dab932f9a",
+        "android_client_info": {
+          "package_name": "com.safespotcm.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAd3nkOkPsrNlbhkRtti71bzGKzsKfbx2U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
