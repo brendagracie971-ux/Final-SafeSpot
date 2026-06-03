@@ -1,45 +1,51 @@
 class UserModel {
+  final String uid;
   final String fullName;
   final String phoneNumber;
-  final String? email;
-  final String? dateOfBirth;
-  final String? gender;
-
-  final String emergencyContact1;
-  final String? emergencyContact2;
-  final String? emergencyContact3;
-
-  final String? bloodGroup;
-  final String? allergies;
-  final String? medicalConditions;
+  final String gender;
+  final String bloodGroup;
+  final String profileImage;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   UserModel({
+    required this.uid,
     required this.fullName,
     required this.phoneNumber,
-    this.email,
-    this.dateOfBirth,
-    this.gender,
-    required this.emergencyContact1,
-    this.emergencyContact2,
-    this.emergencyContact3,
-    this.bloodGroup,
-    this.allergies,
-    this.medicalConditions,
+    required this.gender,
+    required this.bloodGroup,
+    this.profileImage = "",
+    this.createdAt,
+    this.updatedAt,
   });
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toMap() {
     return {
+      'uid': uid,
       'fullName': fullName,
       'phoneNumber': phoneNumber,
-      'email': email,
-      'dateOfBirth': dateOfBirth,
       'gender': gender,
-      'emergencyContact1': emergencyContact1,
-      'emergencyContact2': emergencyContact2,
-      'emergencyContact3': emergencyContact3,
       'bloodGroup': bloodGroup,
-      'allergies': allergies,
-      'medicalConditions': medicalConditions,
+      'profileImage': profileImage,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
     };
+  }
+
+  factory UserModel.fromMap(Map<String, dynamic> map) {
+    return UserModel(
+      uid: map['uid'] ?? '',
+      fullName: map['fullName'] ?? '',
+      phoneNumber: map['phoneNumber'] ?? '',
+      gender: map['gender'] ?? '',
+      bloodGroup: map['bloodGroup'] ?? '',
+      profileImage: map['profileImage'] ?? '',
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as dynamic).toDate()
+          : null,
+      updatedAt: map['updatedAt'] != null
+          ? (map['updatedAt'] as dynamic).toDate()
+          : null,
+    );
   }
 }

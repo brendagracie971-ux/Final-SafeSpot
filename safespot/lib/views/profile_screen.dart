@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/providers/user_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -10,40 +13,59 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool isEditing = false;
+  bool isLoading = true;
 
   final nameController = TextEditingController();
   final phoneController = TextEditingController();
   final bloodController = TextEditingController();
-  final allergyController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    loadData();
+    Future.microtask(() => loadUser());
   }
 
-  Future<void> loadData() async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> loadUser() async {
+    final provider = Provider.of<UserProvider>(context, listen: false);
 
-    setState(() {
-      nameController.text = prefs.getString("name") ?? "";
-      phoneController.text = prefs.getString("phone") ?? "";
-      bloodController.text = prefs.getString("blood") ?? "";
-      allergyController.text = prefs.getString("allergy") ?? "";
-    });
+    final uid = provider.uid;
+    if (uid == null) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+
+    final data = doc.data();
+
+    if (data != null) {
+      nameController.text = data['fullName'] ?? '';
+      phoneController.text = data['phoneNumber'] ?? '';
+      bloodController.text = data['bloodGroup'] ?? '';
+    }
+
+    setState(() => isLoading = false);
   }
 
   Future<void> saveData() async {
-    final prefs = await SharedPreferences.getInstance();
+    final provider = Provider.of<UserProvider>(context, listen: false);
+    final uid = provider.uid;
 
-    await prefs.setString("name", nameController.text);
-    await prefs.setString("phone", phoneController.text);
-    await prefs.setString("blood", bloodController.text);
-    await prefs.setString("allergy", allergyController.text);
+    if (uid == null) return;
 
-    setState(() {
-      isEditing = false;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .update({
+      'fullName': nameController.text.trim(),
+      'phoneNumber': phoneController.text.trim(),
+      'bloodGroup': bloodController.text.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    await provider.refresh();
+
+    setState(() => isEditing = false);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Profile updated")),
@@ -54,12 +76,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-
         _infoTile("Name", nameController.text),
         _infoTile("Phone", phoneController.text),
         _infoTile("Blood Group", bloodController.text),
-        _infoTile("Allergies", allergyController.text),
-
       ],
     );
   }
@@ -67,106 +86,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget buildEditMode() {
     return Column(
       children: [
-
         TextField(
           controller: nameController,
           decoration: const InputDecoration(labelText: "Full Name"),
         ),
-
         TextField(
           controller: phoneController,
           decoration: const InputDecoration(labelText: "Phone Number"),
           keyboardType: TextInputType.phone,
         ),
-
         TextField(
           controller: bloodController,
           decoration: const InputDecoration(labelText: "Blood Group"),
-        ),
-
-        TextField(
-          controller: allergyController,
-          decoration: const InputDecoration(labelText: "Allergies"),
         ),
       ],
     );
   }
 
   Widget _infoTile(String label, String value) {
-  return Container(
-    width: double.infinity,
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
-        )
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.grey,
-            fontSize: 12,
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          const SizedBox(height: 6),
+          Text(
+            value.isEmpty ? "Not set" : value,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value.isEmpty ? "Not set" : value,
-          style: const TextStyle(
-            color: Color(0xFF1C1C1E),
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Profile"),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFFE53935),
-        elevation: 0,
         actions: [
-
           TextButton(
             onPressed: () {
               if (isEditing) {
                 saveData();
               } else {
-                setState(() {
-                  isEditing = true;
-                });
+                setState(() => isEditing = true);
               }
             },
             child: Text(
               isEditing ? "SAVE" : "EDIT",
-                style: const TextStyle(
-                 color: Color(0xFFE53935),
-                 fontWeight: FontWeight.bold,
-                )
+              style: const TextStyle(
+                color: Color(0xFFE53935),
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-
         ],
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(16),
-
         child: isEditing ? buildEditMode() : buildViewMode(),
       ),
     );

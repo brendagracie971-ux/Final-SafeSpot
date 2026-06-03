@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/providers/user_provider.dart';
 
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key});
@@ -9,51 +12,68 @@ class ContactsScreen extends StatefulWidget {
 }
 
 class _ContactsScreenState extends State<ContactsScreen> {
-  List<String> contacts = [];
 
-  @override
-  void initState() {
-    super.initState();
-    loadContacts();
-  }
+  Future<void> addOrUpdateContact({
+    String? docId,
+    required String name,
+    required String phone,
+  }) async {
+    final provider = Provider.of<UserProvider>(context, listen: false);
+    final uid = provider.uid;
 
-  Future<void> loadContacts() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      contacts = prefs.getStringList("contacts") ?? [];
-    });
-  }
+    if (uid == null) return;
 
-  Future<void> saveContacts() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList("contacts", contacts);
-  }
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('emergencyContacts');
 
-  void openContactDialog({int? index}) {
-    final nameController = TextEditingController();
-    final phoneController = TextEditingController();
-
-    if (index != null) {
-      final parts = contacts[index].split(":");
-      nameController.text = parts[0];
-      phoneController.text = parts[1];
+    if (docId == null) {
+      await ref.add({
+        'name': name,
+        'phone': phone,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      await ref.doc(docId).update({
+        'name': name,
+        'phone': phone,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     }
+  }
+
+  Future<void> deleteContact(String docId) async {
+    final provider = Provider.of<UserProvider>(context, listen: false);
+    final uid = provider.uid;
+
+    if (uid == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('emergencyContacts')
+        .doc(docId)
+        .delete();
+  }
+
+  void openDialog({String? docId, String? oldName, String? oldPhone}) {
+    final nameController = TextEditingController(text: oldName ?? '');
+    final phoneController = TextEditingController(text: oldPhone ?? '');
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(index == null ? "Add Contact" : "Edit Contact"),
+          title: Text(docId == null ? "Add Contact" : "Edit Contact"),
 
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-
               TextField(
                 controller: nameController,
                 decoration: const InputDecoration(labelText: "Name"),
               ),
-
               TextField(
                 controller: phoneController,
                 decoration: const InputDecoration(labelText: "Phone"),
@@ -63,28 +83,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
 
           actions: [
-
             TextButton(
-              onPressed: () {
-                Navigator.pop(context); // ❌ cancel
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text("Cancel"),
             ),
 
             ElevatedButton(
               onPressed: () async {
-                String newContact =
-                    "${nameController.text}:${phoneController.text}";
+                await addOrUpdateContact(
+                  docId: docId,
+                  name: nameController.text.trim(),
+                  phone: phoneController.text.trim(),
+                );
 
-                setState(() {
-                  if (index == null) {
-                    contacts.add(newContact);
-                  } else {
-                    contacts[index] = newContact;
-                  }
-                });
-
-                await saveContacts();
+                if (!mounted) return;
                 Navigator.pop(context);
               },
               child: const Text("Save"),
@@ -95,15 +107,22 @@ class _ContactsScreenState extends State<ContactsScreen> {
     );
   }
 
-  Future<void> deleteContact(int index) async {
-    setState(() {
-      contacts.removeAt(index);
-    });
-    await saveContacts();
-  }
-
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<UserProvider>(context);
+    final uid = provider.uid;
+
+    if (uid == null) {
+      return const Scaffold(
+        body: Center(child: Text("No user found")),
+      );
+    }
+
+    final contactsRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('emergencyContacts');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Emergency Contacts"),
@@ -112,34 +131,57 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.red,
-        onPressed: () => openContactDialog(),
+        onPressed: () => openDialog(),
         child: const Icon(Icons.add),
       ),
 
-      body: ListView.builder(
-        itemCount: contacts.length,
-        itemBuilder: (context, index) {
-          final parts = contacts[index].split(":");
+      body: StreamBuilder<QuerySnapshot>(
+        stream: contactsRef.orderBy('createdAt', descending: true).snapshots(),
+        builder: (context, snapshot) {
 
-          return ListTile(
-            title: Text(parts[0]),
-            subtitle: Text(parts[1]),
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+          final docs = snapshot.data!.docs;
 
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: () => openContactDialog(index: index),
+          if (docs.isEmpty) {
+            return const Center(
+              child: Text("No emergency contacts"),
+            );
+          }
+
+          return ListView.builder(
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+
+              return ListTile(
+                title: Text(data['name'] ?? ''),
+                subtitle: Text(data['phone'] ?? ''),
+
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blue),
+                      onPressed: () => openDialog(
+                        docId: doc.id,
+                        oldName: data['name'],
+                        oldPhone: data['phone'],
+                      ),
+                    ),
+
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => deleteContact(doc.id),
+                    ),
+                  ],
                 ),
-
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => deleteContact(index),
-                ),
-              ],
-            ),
+              );
+            },
           );
         },
       ),

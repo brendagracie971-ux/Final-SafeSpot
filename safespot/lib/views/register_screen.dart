@@ -1,5 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../../core/services/storage_service.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../../core/providers/user_provider.dart';
 import 'home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -15,8 +19,61 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? bloodGroup;
 
   final TextEditingController nameController = TextEditingController();
-  final TextEditingController contactController = TextEditingController();
-  final TextEditingController allergiesController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
+
+  bool isLoading = false;
+
+  Future<void> saveProfile() async {
+    if (nameController.text.isEmpty || phoneController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill all required fields")),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      final provider = Provider.of<UserProvider>(context, listen: false);
+
+      // 🔐 ensure session exists
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set({
+        'uid': uid,
+        'fullName': nameController.text.trim(),
+        'phoneNumber': phoneController.text.trim(),
+        'gender': gender ?? "",
+        'bloodGroup': bloodGroup ?? "",
+        'profileImage': "",
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 🔄 refresh global state
+      await provider.refresh();
+
+      if (!mounted) return;
+
+      // 🚀 go home (NO UID PASSED)
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const HomeScreen(),
+        ),
+      );
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+
+    setState(() => isLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,44 +86,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
             children: [
 
               const SizedBox(height: 20),
-
               const Icon(Icons.shield, size: 70, color: Color(0xFF8B0000)),
 
               const SizedBox(height: 10),
 
               const Text(
-                "SafeSpot Registration",
-                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                "Complete Your Profile",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
               const SizedBox(height: 30),
 
               _buildField("Full Name", nameController),
-              _buildField("Contact Number", contactController),
+              _buildField("Phone Number", phoneController),
 
               _buildDropdown(
                 label: "Gender",
                 value: gender,
                 items: ["Male", "Female", "Other"],
-                onChanged: (val) {
-                  setState(() {
-                    gender = val;
-                  });
-                },
+                onChanged: (val) => setState(() => gender = val),
               ),
 
               _buildDropdown(
                 label: "Blood Group",
                 value: bloodGroup,
                 items: ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"],
-                onChanged: (val) {
-                  setState(() {
-                    bloodGroup = val;
-                  });
-                },
+                onChanged: (val) => setState(() => bloodGroup = val),
               ),
-
-              _buildField("Allergies", allergiesController),
 
               const SizedBox(height: 30),
 
@@ -75,35 +125,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   backgroundColor: const Color(0xFF8B0000),
                   minimumSize: const Size(double.infinity, 55),
                 ),
-                onPressed: () async {
-                    // simple validation (optional but important)
-                    if (nameController.text.isEmpty || contactController.text.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Please fill in name and contact"),
-                        ),
-                      );
-                      return;
-                    }
-
-                    await StorageService.saveUser(
-                      name: nameController.text,
-                      contact: contactController.text,
-                      gender: gender ?? "",
-                      blood: bloodGroup ?? "",
-                      allergies: allergiesController.text,
-                    );
-
-                    // go to next screen (temporary placeholder)
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const HomeScreen(),
-                      ),
-                    );
-                  },
-                child: const Text("REGISTER"),
-                  
+                onPressed: isLoading ? null : saveProfile,
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("CONTINUE"),
               ),
             ],
           ),
@@ -133,57 +158,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildDropdown({
-  required String label,
-  required String? value,
-  required List<String> items,
-  required Function(String?) onChanged,
-}) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 15),
-    child: DropdownButtonFormField<String>(
-      value: value,
-      onChanged: onChanged,
-      dropdownColor: const Color(0xFF1A1A1A),
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.grey),
-
-        filled: true,
-        fillColor: const Color(0xFF1A1A1A),
-
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 16,
-        ),
-
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Color(0xFF8B0000),
-            width: 2,
+    required String label,
+    required String? value,
+    required List<String> items,
+    required Function(String?) onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        onChanged: onChanged,
+        dropdownColor: const Color(0xFF1A1A1A),
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.grey),
+          filled: true,
+          fillColor: const Color(0xFF1A1A1A),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
           ),
         ),
+        items: items
+            .map((e) => DropdownMenuItem(
+                  value: e,
+                  child: Text(e),
+                ))
+            .toList(),
       ),
-      items: items
-          .map(
-            (e) => DropdownMenuItem(
-              value: e,
-              child: Text(e),
-            ),
-          )
-          .toList(),
-    ),
-  );
-}
+    );
+  }
 }

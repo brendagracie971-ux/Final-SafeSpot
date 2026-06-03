@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../core/services/storage_service.dart';
-import 'register_screen.dart';
+import 'package:provider/provider.dart';
+
+import '../core/providers/user_provider.dart';
 import 'home_screen.dart';
+import 'register_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -15,76 +17,35 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkRegistration();
+    _init();
   }
 
-  Future<void> _checkRegistration() async {
+  Future<void> _init() async {
+    final provider = Provider.of<UserProvider>(context, listen: false);
+
     await Future.delayed(const Duration(seconds: 2));
 
-    final registered = await StorageService.isRegistered();
+    await provider.initUser();
 
     if (!mounted) return;
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            registered ? const HomeScreen() : const RegisterScreen(),
-      ),
-    );
+    if (provider.userData != null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const RegisterScreen()),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F7FB),
-
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE53935),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: const Icon(
-                Icons.shield_outlined,
-                color: Colors.white,
-                size: 60,
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            const Text(
-              "SafeSpot",
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1C1C1E),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            const Text(
-              "Your Safety Matters",
-              style: TextStyle(
-                color: Color(0xFF6B6B6B),
-                fontSize: 16,
-              ),
-            ),
-
-            const SizedBox(height: 40),
-
-            const CircularProgressIndicator(),
-          ],
-        ),
-      ),
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 }
