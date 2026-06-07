@@ -93,10 +93,7 @@ class _MapScreenState extends State<MapScreen> {
             },
           ),
 
-          if (loading)
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
+          if (loading) const Center(child: CircularProgressIndicator()),
         ],
       ),
     );

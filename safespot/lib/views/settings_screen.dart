@@ -10,13 +10,10 @@ class SettingsScreen extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Settings"),
-      ),
+      appBar: AppBar(title: const Text("Settings")),
 
       body: ListView(
         children: [
-
           SwitchListTile(
             title: const Text("Dark Mode"),
             value: themeProvider.isDarkMode,
@@ -29,13 +26,9 @@ class SettingsScreen extends StatelessWidget {
             leading: const Icon(Icons.info),
             title: const Text("Licenses"),
             onTap: () {
-              showLicensePage(
-                context: context,
-                applicationName: "SafeSpot",
-              );
+              showLicensePage(context: context, applicationName: "SafeSpot");
             },
           ),
-
         ],
       ),
     );

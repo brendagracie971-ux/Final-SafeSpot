@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SafeSpot</string>
+    <string name="accessibility_service_description">SafeSpot uses accessibility service to detect volume button presses for SOS alerts even when the screen is off.</string>
+</resources>
